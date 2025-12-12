@@ -33,6 +33,7 @@ This script:
 **Note:** You only need to run this once per AWS account. If the bucket/table already exist, the script will skip creation.
 
 ### Step 2: Create a branch and commit
+You need to have created a repo in Github with main before creating the feature branch. 
 
 ```bash
 git checkout -b feature/proj-02-vpc
