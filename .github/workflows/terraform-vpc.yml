@@ -43,7 +43,15 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
 
       - name: Terraform Init
-        run: terraform init -upgrade
+        run: |
+          cat > backend.conf <<EOF
+          bucket = "${{ secrets.BACKEND_BUCKET }}"
+          key    = "${{ secrets.BACKEND_KEY || 'vpc/terraform.tfstate' }}"
+          region = "${{ secrets.BACKEND_REGION }}"
+          encrypt = true
+          dynamodb_table = "${{ secrets.BACKEND_DDB }}"
+          EOF
+          terraform init -backend-config=backend.conf -upgrade
         working-directory: ${{ env.WORKING_DIR }}
 
       - name: Terraform Validate
@@ -95,7 +103,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
-        run: terraform init -upgrade
+        run: |
+          cat > backend.conf <<EOF
+          bucket = "${{ secrets.BACKEND_BUCKET }}"
+          key    = "${{ secrets.BACKEND_KEY || 'vpc/terraform.tfstate' }}"
+          region = "${{ secrets.BACKEND_REGION }}"
+          encrypt = true
+          dynamodb_table = "${{ secrets.BACKEND_DDB }}"
+          EOF
+          terraform init -backend-config=backend.conf -upgrade
         working-directory: ${{ env.WORKING_DIR }}
 
       - name: Terraform Validate
