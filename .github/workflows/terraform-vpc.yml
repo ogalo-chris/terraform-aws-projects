@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     permissions:
+      id-token: write
       contents: read
       pull-requests: write
     steps:
@@ -44,6 +45,9 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Debug AWS identity
+        run: aws sts get-caller-identity
+
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
         working-directory: ${{ env.WORKING_DIR }}
@@ -52,7 +56,7 @@ jobs:
         run: |
           cat > backend.conf <<EOF
           bucket = "${{ secrets.BACKEND_BUCKET }}"
-          key    = "${{ secrets.BACKEND_KEY || 'vpc/terraform.tfstate' }}"
+          key    = "${{ secrets.BACKEND_KEY }}"
           region = "${{ secrets.BACKEND_REGION }}"
           encrypt = true
           dynamodb_table = "${{ secrets.BACKEND_DDB }}"
@@ -68,6 +72,10 @@ jobs:
         id: plan
         run: terraform plan -no-color -out=tfplan
         working-directory: ${{ env.WORKING_DIR }}
+      
+      - name: Convert plan to text
+        run: terraform show -no-color tfplan > plan.txt
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Post Plan to PR
         uses: actions/github-script@v6
@@ -75,16 +83,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const plan = fs.readFileSync('${{ env.WORKING_DIR }}/tfplan', 'utf8');
-            const comment = `## Terraform Plan
-            \`\`\`
-            ${plan}
-            \`\`\``;
+            const plan = fs.readFileSync('${{ env.WORKING_DIR }}/plan.txt', 'utf8');
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: comment
+              body: `## Terraform Plan\n\`\`\`\n${plan}\n\`\`\``
             });
 
   terraform-apply:
@@ -92,6 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
+      id-token: write
       contents: read
     steps:
       - name: Checkout code
