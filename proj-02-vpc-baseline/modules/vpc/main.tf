@@ -81,3 +81,76 @@ resource "aws_route_table_association" "private_assoc" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private[count.index].id
 }
+
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+}
+
+resource "aws_security_group" "private_ec2_sg" {
+  name        = "${var.name_prefix}-private-ec2-sg"
+  description = "Private EC2 SG with outbound internet via NAT"
+  vpc_id      = aws_vpc.this_vpc.id
+
+  # Optional: allow SSH ONLY from inside the VPC (bastion)
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.name_prefix}-private-ec2-sg"
+  }
+}
+
+resource "aws_instance" "private_test" {
+  ami           = data.aws_ami.amazon_linux.id
+  instance_type = "t3.micro"
+
+  subnet_id              = aws_subnet.private[0].id
+  vpc_security_group_ids = [aws_security_group.private_ec2_sg.id]
+
+  associate_public_ip_address = false
+  iam_instance_profile = aws_iam_instance_profile.ssm_profile.name
+
+  tags = {
+    Name = "${var.name_prefix}-private-nat-test"
+  }
+}
+
+resource "aws_iam_role" "ssm_role" {
+  name = "${var.name_prefix}-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ssm_profile" {
+  name = "${var.name_prefix}-ssm-profile"
+  role = aws_iam_role.ssm_role.name
+}
