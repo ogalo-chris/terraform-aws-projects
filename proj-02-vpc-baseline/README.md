@@ -46,7 +46,7 @@ git push origin feature/proj-02-vpc
 
 ```bash
 export AWS_PROFILE=your-profile   # or configure env creds
-terraform init
+terraform init ---backend-config= #You need a backend config since terraform doesn't allow variable in backend.tf
 terraform plan -out plan.tfplan
 terraform apply "plan.tfplan"
 ```
@@ -117,3 +117,50 @@ See [GITHUB_ACTIONS_SETUP.md](../GITHUB_ACTIONS_SETUP.md) for:
 - State file encryption (S3) and locking (DynamoDB) are standard best practices.
 - GitHub Actions uses OIDC to assume an IAM role — no long-lived credentials are stored.
 - For more details, see [Terraform Remote State Documentation](https://developer.hashicorp.com/terraform/language/state/remote).
+
+## Backend config: example and safe storage
+
+You should not commit your real `backend.conf` to the repository because it contains account-specific details. Instead:
+
+- Keep a checked-in example file: `backend.conf.example` (provided in this folder).
+- Create a real `backend.conf` locally (or in CI) from the example and **do not** commit it. The project `.gitignore` already lists `backend.conf`.
+
+Example (create `backend.conf` locally):
+
+```bash
+# from project root
+cp backend.conf.example backend.conf
+# Edit backend.conf and replace <ACCOUNT_ID> with your AWS account id
+sed -i "s/<ACCOUNT_ID>/$(aws sts get-caller-identity --query Account --output text)/" backend.conf
+
+# Initialize Terraform using that concrete backend config
+terraform init -backend-config=backend.conf
+```
+
+CI / GitHub Actions: supply backend values from secrets
+
+In CI you should avoid storing `backend.conf` in the repo. Instead, create `backend.conf` at runtime using repository Secrets, or pass the individual values with `-backend-config` flags.
+
+Example GitHub Actions step (pseudo):
+
+```yaml
+- name: Create backend config
+	run: |
+		cat > backend.conf <<EOF
+		bucket = "${{ secrets.BACKEND_BUCKET }}"
+		key = "vpc/terraform.tfstate"
+		region = "${{ secrets.BACKEND_REGION }}"
+		encrypt = true
+		dynamodb_table = "${{ secrets.BACKEND_DDB }}"
+		EOF
+
+- name: Terraform init
+	run: terraform init -backend-config=backend.conf
+```
+
+Store the following repo secrets in GitHub (Actions → Secrets):
+- `BACKEND_BUCKET` — S3 bucket name
+- `BACKEND_REGION` — region (e.g. `us-east-1`)
+- `BACKEND_DDB` — DynamoDB lock table name
+
+This keeps account-specific backend details out of source control while allowing CI to initialize the backend securely.

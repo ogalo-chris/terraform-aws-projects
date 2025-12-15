@@ -49,10 +49,10 @@ resource "aws_nat_gateway" "this" {
 }
 
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.this.id
+  vpc_id = aws_vpc.this_vpc.id
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.this.id
+    gateway_id = aws_internet_gateway.this_igw.id
   }
   tags = { Name = "${var.name_prefix}-public-rt" }
 }
@@ -65,7 +65,7 @@ resource "aws_route_table_association" "public_assoc" {
 
 resource "aws_route_table" "private" {
   count  = length(var.azs)
-  vpc_id = aws_vpc.this.id
+  vpc_id = aws_vpc.this_vpc.id
   tags = { Name = "${var.name_prefix}-private-rt-${count.index}" }
 }
 

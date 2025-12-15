@@ -84,6 +84,28 @@ Go to your GitHub repository:
 
 Replace `ACCOUNT_ID` with your AWS account ID.
 
+### Backend secrets for Terraform remote state
+
+The workflow creates a temporary `backend.conf` from repository secrets at runtime. Add the following **Repository Secrets** so the Actions runner can initialize the S3 backend and DynamoDB locking table:
+
+- **Name:** `BACKEND_BUCKET` — the S3 bucket name that stores Terraform state (e.g. `vpc-terraform-state-123456789012`)
+- **Name:** `BACKEND_REGION` — AWS region for the backend (e.g. `us-east-1`)
+- **Name:** `BACKEND_DDB` — DynamoDB table name for state locking (e.g. `vpc-terraform-locks`)
+- **Name:** `BACKEND_KEY` *(optional)* — object key for the state (defaults to `vpc/terraform.tfstate` if not provided)
+
+You can add secrets via the GitHub web UI (recommended) or with the `gh` CLI:
+
+Using `gh` CLI:
+```bash
+gh secret set BACKEND_BUCKET --body "vpc-terraform-state-123456789012"
+gh secret set BACKEND_REGION --body "us-east-1"
+gh secret set BACKEND_DDB --body "vpc-terraform-locks"
+# optional
+gh secret set BACKEND_KEY --body "vpc/terraform.tfstate"
+```
+
+These secrets are injected into the workflow at runtime and used to create `backend.conf` transiently on the runner; they are not stored in the repository or exposed in logs.
+
 ## Step 3: Enable OIDC in GitHub
 
 GitHub Actions uses OIDC (OpenID Connect) to assume the IAM role without storing credentials.
